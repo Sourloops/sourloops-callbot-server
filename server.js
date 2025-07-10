@@ -143,8 +143,15 @@ Finis toujours par remercier l’interlocuteur.
   const response = await getOpenAIResponse(history);
   history.push({ role: "assistant", content: response });
 
-  await generateVoice(response);
-  twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
+await generateVoice("Bonjour, ici SourLoops Free Spirits. Comment puis-je vous aider aujourd’hui ?");
+twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
+
+// Lancer le gather APRÈS le play (Twilio attend la fin du son)
+twiml.gather({
+  input: "speech",
+  action: "/twilio-webhook",
+  method: "POST"
+});
 
   // 🧹 Condition de fin
   if (speech.toLowerCase().includes("merci") || history.length >= 10) {
