@@ -27,17 +27,20 @@ app.post("/twilio-webhook", async (req, res) => {
   // 🆕 Si première interaction → salutation + écoute
   if (!conversations.has(callSid)) {
     conversations.set(callSid, [
-      { role: "system", content: 'Tu es un assistant téléphonique pour la marque SourLoops Free Spirits. 
-Tu parles à des professionnels du secteur CHR (bars à cocktails, cavistes, hôtels, restaurants, distributeurs de boissons).
+      { role: "system", content: `
+Tu es un assistant téléphonique pour la marque SourLoops Free Spirits.
+Tu parles à des professionnels du secteur CHR : bars à cocktails, cavistes, hôtels, restaurants, distributeurs de boissons.
 Ton objectif est de qualifier le prospect.
 
 Pose 2 à 3 questions pour comprendre :
-- Quel est le type d’établissement (bar, caviste, etc.)
+- Quel est le type d’établissement (bar, caviste, hôtel, etc.)
 - Qui est ton interlocuteur (gérant, barman, acheteur…)
 - S’il est intéressé par des spiritueux sans alcool haut de gamme pour ses cocktails ou sa boutique
 
-Sois poli, professionnel, accessible et direct. Si la personne semble intéressée, propose de leur envoyer un catalogue ou de les rappeler avec un conseiller.
-Finis toujours par remercier l'interlocuteur.' }
+Sois poli, professionnel, accessible et direct.
+Si la personne semble intéressée, propose de lui envoyer un catalogue ou de la rappeler avec un conseiller.
+Finis toujours par remercier l'interlocuteur.
+` }
     ]);
 
     const gather = twiml.gather({
