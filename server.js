@@ -2,6 +2,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const dotenv = require("dotenv");
+const twilio = require("twilio"); // 👉 on ajoute le SDK Twilio
 dotenv.config();
 
 const app = express();
@@ -10,24 +11,34 @@ app.use(bodyParser.json());
 
 const port = process.env.PORT || 3000;
 
-// ➕ Route /call
-app.post("/call", async (req, res) => {
-  const { to } = req.body;
-  console.log(`Appel vers ${to}`);
-  res.status(200).send(`Appel simulé vers ${to}`);
-});
+// 👉 configuration Twilio
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-// ➕ Route de test
-app.get("/", (req, res) => {
-  res.send("Serveur SourLoops en ligne !");
-});
-
-// Route webhook Twilio
+// Endpoint pour Twilio webhook
 app.post("/twilio-webhook", async (req, res) => {
   const userText = req.body.SpeechResult || "Bonjour";
   const response = await getOpenAIResponse(userText);
   const twiml = `<Response><Say voice="Polly.Celine">${response}</Say></Response>`;
   res.type("text/xml").send(twiml);
+});
+
+// 👉 Nouveau endpoint pour lancer un appel
+app.post("/call", async (req, res) => {
+  const to = req.body.to;
+
+  try {
+    const call = await client.calls.create({
+      url: `${process.env.BASE_URL}/twilio-webhook`, // URL de réponse vocale
+      to,
+      from: twilioPhoneNumber,
+    });
+
+    res.json({ message: `Appel lancé vers ${to}`, callSid: call.sid });
+  } catch (err) {
+    console.error("Erreur Twilio:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 async function getOpenAIResponse(prompt) {
