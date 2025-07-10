@@ -116,9 +116,9 @@ Finis toujours par remercier l’interlocuteur.
       { role: "assistant", content: intro },
     ]);
 
-    await generateVoice(intro);
-
-    twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
+const firstMessage = "Bonjour je suis Prune de la Marque Sourloops Free Spirits, je vous appelle dans le cadre de votre activité pour savoir si vous seriez intéressé par des spiritueux sans alcool haut de gamme pour vos cocktails ou votre boutique.";
+await generateVoice(firstMessage); // génère un vrai mp3
+twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
 
     const gather = twiml.gather({
       input: "speech",
@@ -142,6 +142,8 @@ Finis toujours par remercier l’interlocuteur.
 
   const response = await getOpenAIResponse(history);
   history.push({ role: "assistant", content: response });
+await generateVoice(response);
+twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
 
 await generateVoice("Bonjour, ici SourLoops Free Spirits. Comment puis-je vous aider aujourd’hui ?");
 twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
