@@ -10,6 +10,19 @@ app.use(bodyParser.json());
 
 const port = process.env.PORT || 3000;
 
+// ➕ Route /call
+app.post("/call", async (req, res) => {
+  const { to } = req.body;
+  console.log(`Appel vers ${to}`);
+  res.status(200).send(`Appel simulé vers ${to}`);
+});
+
+// ➕ Route de test
+app.get("/", (req, res) => {
+  res.send("Serveur SourLoops en ligne !");
+});
+
+// Route webhook Twilio
 app.post("/twilio-webhook", async (req, res) => {
   const userText = req.body.SpeechResult || "Bonjour";
   const response = await getOpenAIResponse(userText);
