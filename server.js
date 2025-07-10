@@ -3,25 +3,26 @@ const bodyParser = require("body-parser");
 const axios = require("axios");
 const dotenv = require("dotenv");
 const twilio = require("twilio");
+const fs = require("fs");
+const path = require("path");
+
 dotenv.config();
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use("/public", express.static(path.join(__dirname, "public")));
 
 const port = process.env.PORT || 3000;
 
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-// 🔁 Historique des conversations : callSid => messages[]
 const conversations = new Map();
 
-const fs = require("fs");
-const path = require("path");
-
+// 🎙 Fonction de génération audio ElevenLabs
 async function generateVoice(text, filename = "response.mp3") {
-  const voiceId = "lgs5nvhqQFror0VJH8BU"; // Voix clone de "Paul"
+  const voiceId = "lgs5nvhqQFror0VJH8BU"; // ID voix "Paul"
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
   const response = await axios.post(
@@ -51,93 +52,7 @@ async function generateVoice(text, filename = "response.mp3") {
   });
 }
 
-
-// Endpoint Twilio appelé pendant l’appel
-app.post("/twilio-webhook", async (req, res) => {
-  const callSid = req.body.CallSid;
-  const speech = req.body.SpeechResult;
-
-  const twiml = new twilio.twiml.VoiceResponse();
-
-  // 🆕 Si première interaction → salutation + écoute
-  if (!conversations.has(callSid)) {
-    conversations.set(callSid, [
-      { role: "system", content: `
-Tu prends le role d'un commercial pour la marque SourLoops Free Spirits. Tu te présentes en tant que tel. Tu commences la conversation par dire : Bonjour je suis Prune de la Marque Sourloops free Spirits, je vous appelle dans le cadre de votre activité pour savoir si vous seriez intéressé par des spiritueux sans alcool haut de gamme pour vos cocktails ou votre boutique.
-Tu appelles des professionnels du secteur CHR : bars à cocktails, cavistes, hôtels, restaurants, distributeurs de boissons.
-Ton objectif est de qualifier le prospect afin de savoir si il pourrait être un client de Sourloops Free Spirits.
-
-Sois poli, professionnel, accessible et direct.
-Si la personne semble intéressée, propose de lui envoyer un catalogue ou de la rappeler avec un conseiller.
-Finis toujours par remercier l'interlocuteur.
-` }
-    ]);
-
-await generateVoice(response); // <- génère le MP3
-twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
-
-// 🔁 Puis on écoute la réponse
-const gather = twiml.gather({
-  input: "speech",
-  action: "/twilio-webhook",
-  method: "POST"
-});
-gather.say("Je vous écoute.");
-return res.type("text/xml").send(twiml.toString());
-  }
-
-  // ❌ Si aucune parole n’a été entendue
-  if (!speech) {
-    twiml.say({ voice: "Polly.Celine" }, "Je n’ai pas compris, je vais devoir raccrocher. Bonne journée !");
-    conversations.delete(callSid);
-    return res.type("text/xml").send(twiml.toString());
-  }
-
-  // 🧠 Mise à jour historique
-  const history = conversations.get(callSid);
-  history.push({ role: "user", content: speech });
-
-  // 🗨️ Appel à OpenAI
-  const response = await getOpenAIResponse(history);
-  history.push({ role: "assistant", content: response });
-
-  // 🧹 Condition d'arrêt (au revoir ou trop long)
-  if (speech.toLowerCase().includes("merci") || history.length >= 10) {
-    twiml.say({ voice: "Polly.Celine" }, response);
-    twiml.say({ voice: "Polly.Celine" }, "Merci pour votre temps. Au revoir !");
-    conversations.delete(callSid);
-    return res.type("text/xml").send(twiml.toString());
-  }
-
-  // 🔁 Relancer un nouveau <Gather>
-  const gather = twiml.gather({
-    input: "speech",
-    action: "/twilio-webhook",
-    method: "POST"
-  });
-  gather.say({ voice: "Polly.Celine" }, response);
-  return res.type("text/xml").send(twiml.toString());
-});
-
-// 👉 Endpoint pour lancer un appel manuellement
-app.post("/call", async (req, res) => {
-  const to = req.body.to;
-
-  try {
-    const call = await client.calls.create({
-      url: `${process.env.BASE_URL}/twilio-webhook`,
-      to,
-      from: twilioPhoneNumber,
-    });
-
-    res.json({ message: `Appel lancé vers ${to}`, callSid: call.sid });
-  } catch (err) {
-    console.error("Erreur Twilio:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 🔧 Fonction pour obtenir une réponse GPT avec tout l’historique
+// 🧠 Appel OpenAI
 async function getOpenAIResponse(messages) {
   try {
     const result = await axios.post(
@@ -161,6 +76,99 @@ async function getOpenAIResponse(messages) {
   }
 }
 
+// 📞 Webhook Twilio
+app.post("/twilio-webhook", async (req, res) => {
+  const callSid = req.body.CallSid;
+  const speech = req.body.SpeechResult;
+
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  // 🆕 Première interaction
+  if (!conversations.has(callSid)) {
+    const intro = `Bonjour, je suis Prune de la marque SourLoops Free Spirits. 
+Je vous appelle dans le cadre de votre activité pour savoir si vous seriez intéressé par des spiritueux sans alcool haut de gamme pour vos cocktails ou votre boutique.`;
+
+    conversations.set(callSid, [
+      {
+        role: "system",
+        content: `
+Tu prends le rôle d'un commercial pour la marque SourLoops Free Spirits. Tu te présentes en tant que tel.
+Tu appelles des professionnels du secteur CHR : bars à cocktails, cavistes, hôtels, restaurants, distributeurs de boissons.
+Ton objectif est de qualifier le prospect afin de savoir s’il pourrait être client.
+
+Sois poli, professionnel, accessible et direct.
+Si la personne semble intéressée, propose de lui envoyer un catalogue ou de la rappeler.
+Finis toujours par remercier l’interlocuteur.
+`,
+      },
+      { role: "assistant", content: intro },
+    ]);
+
+    await generateVoice(intro);
+
+    twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
+
+    const gather = twiml.gather({
+      input: "speech",
+      action: "/twilio-webhook",
+      method: "POST",
+    });
+    gather.say("Je vous écoute.");
+    return res.type("text/xml").send(twiml.toString());
+  }
+
+  // ❌ Aucune réponse vocale captée
+  if (!speech) {
+    twiml.say({ voice: "Polly.Celine" }, "Je n’ai pas compris, je vais devoir raccrocher. Bonne journée !");
+    conversations.delete(callSid);
+    return res.type("text/xml").send(twiml.toString());
+  }
+
+  // 🧠 Historique + réponse IA
+  const history = conversations.get(callSid);
+  history.push({ role: "user", content: speech });
+
+  const response = await getOpenAIResponse(history);
+  history.push({ role: "assistant", content: response });
+
+  await generateVoice(response);
+  twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
+
+  // 🧹 Condition de fin
+  if (speech.toLowerCase().includes("merci") || history.length >= 10) {
+    twiml.say("Merci pour votre temps. Au revoir !");
+    conversations.delete(callSid);
+    return res.type("text/xml").send(twiml.toString());
+  }
+
+  const gather = twiml.gather({
+    input: "speech",
+    action: "/twilio-webhook",
+    method: "POST",
+  });
+  gather.say("Je vous écoute.");
+  return res.type("text/xml").send(twiml.toString());
+});
+
+// ▶️ Lancer un appel
+app.post("/call", async (req, res) => {
+  const to = req.body.to;
+
+  try {
+    const call = await client.calls.create({
+      url: `${process.env.BASE_URL}/twilio-webhook`,
+      to,
+      from: twilioPhoneNumber,
+    });
+
+    res.json({ message: `Appel lancé vers ${to}`, callSid: call.sid });
+  } catch (err) {
+    console.error("Erreur Twilio:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 Lancement serveur
 app.listen(port, () => {
   console.log(`✅ Serveur SourLoops en ligne sur le port ${port}`);
 });
