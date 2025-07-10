@@ -29,7 +29,7 @@ async function generateVoice(text, filename = "response.mp3") {
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
     {
       text,
-      model_id: "eleven_monolingual_v2",
+      model_id: "eleven_monolingual_v1",
       voice_settings: { stability: 0.5, similarity_boost: 0.8 },
     },
     {
