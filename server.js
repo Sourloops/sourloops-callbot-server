@@ -22,35 +22,46 @@ const conversations = new Map();
 
 // 🎙 Fonction de génération audio ElevenLabs
 async function generateVoice(text, filename = "response.mp3") {
-  const voiceId = "O31r762Gb3WFygrEOGh0"; // ID voix "Paul"
+  const voiceId = "lgs5nvhqQFror0VJH8BU"; // Ton clone ElevenLabs
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
-  const response = await axios.post(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
-      text,
-      model_id: "eleven_monolingual_v1",
-      voice_settings: { stability: 0.5, similarity_boost: 0.8 },
-lang: "fr"
-    },
-    {
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
+  try {
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        text,
+        model_id: "eleven_multilingual_v2", // ✅ modèle multilingue
+        voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+        lang: "fr" // ✅ astuce pour forcer la détection du français
       },
-      responseType: "stream",
-    }
-  );
+      {
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+          "Accept": "audio/mpeg",
+        },
+        responseType: "stream",
+      }
+    );
 
-  const filePath = path.join(__dirname, "public", filename);
-  const writer = fs.createWriteStream(filePath);
-  response.data.pipe(writer);
+    const filePath = path.join(__dirname, "public", filename);
+    const writer = fs.createWriteStream(filePath);
+    response.data.pipe(writer);
 
-  return new Promise((resolve, reject) => {
-    writer.on("finish", () => resolve(`/public/${filename}`));
-    writer.on("error", reject);
-  });
+    return new Promise((resolve, reject) => {
+      writer.on("finish", () => {
+        console.log("✅ Fichier audio généré avec succès.");
+        resolve(`/public/${filename}`);
+      });
+      writer.on("error", (err) => {
+        console.error("❌ Erreur lors de l’écriture du fichier audio :", err);
+        reject(err);
+      });
+    });
+  } catch (err) {
+    console.error("❌ Erreur ElevenLabs :", err.response?.data || err.message);
+    throw err;
+  }
 }
 
 // 🧠 Appel OpenAI
