@@ -17,6 +17,41 @@ const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 // 🔁 Historique des conversations : callSid => messages[]
 const conversations = new Map();
 
+const fs = require("fs");
+const path = require("path");
+
+async function generateVoice(text, filename = "response.mp3") {
+  const voiceId = "lgs5nvhqQFror0VJH8BU"; // Voix clone de "Paul"
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+
+  const response = await axios.post(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    {
+      text,
+      model_id: "eleven_monolingual_v1",
+      voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+    },
+    {
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+      },
+      responseType: "stream",
+    }
+  );
+
+  const filePath = path.join(__dirname, "public", filename);
+  const writer = fs.createWriteStream(filePath);
+  response.data.pipe(writer);
+
+  return new Promise((resolve, reject) => {
+    writer.on("finish", () => resolve(`/public/${filename}`));
+    writer.on("error", reject);
+  });
+}
+
+
 // Endpoint Twilio appelé pendant l’appel
 app.post("/twilio-webhook", async (req, res) => {
   const callSid = req.body.CallSid;
