@@ -73,13 +73,17 @@ Finis toujours par remercier l'interlocuteur.
 ` }
     ]);
 
-    const gather = twiml.gather({
-      input: "speech",
-      action: "/twilio-webhook",
-      method: "POST"
-    });
-    gather.say({ voice: "Polly.Celine" }, "Bonjour, ici SourLoops Free Spirits. Comment puis-je vous aider aujourd’hui ?");
-    return res.type("text/xml").send(twiml.toString());
+await generateVoice(response); // <- génère le MP3
+twiml.play(`${process.env.BASE_URL}/public/response.mp3`);
+
+// 🔁 Puis on écoute la réponse
+const gather = twiml.gather({
+  input: "speech",
+  action: "/twilio-webhook",
+  method: "POST"
+});
+gather.say("Je vous écoute.");
+return res.type("text/xml").send(twiml.toString());
   }
 
   // ❌ Si aucune parole n’a été entendue
